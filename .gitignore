@@ -1,0 +1,33 @@
+# Виртуална среда
+.venv/
+venv/
+env/
+ENV/
+
+# PyCharm
+.idea/
+*.iml
+
+# Python кешове
+__pycache__/
+*.pyc
+*.pyo
+
+# Данни (ако са големи)
+data/
+*.csv
+*.xlsx
+
+# Submission файлове
+submission_*.csv
+
+# MLflow
+mlruns/
+*.log
+
+# Jupyter checkpoint
+.ipynb_checkpoints/
+
+# OS метаданни
+.DS_Store
+Thumbs.db
