@@ -1,3 +1,4 @@
+# .gitignore
 # Виртуална среда
 .venv/
 venv/
@@ -15,11 +16,10 @@ __pycache__/
 
 # Данни (ако са големи)
 data/
-*.csv
+# *.csv
 *.xlsx
-
 # Submission файлове
-submission_*.csv
+# submission_*.csv
 
 # MLflow
 mlruns/
