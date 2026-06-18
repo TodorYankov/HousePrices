@@ -1,15 +1,15 @@
 # House Prices - Advanced Regression Techniques
 
-Финален проект по Machine Learning.
+Final Exam Project in Machine Learning.
 
-**Цел:** Прогнозиране на цени на жилища, класификация на скъпи/евтини имоти, клъстериране на квартали, намаляване на размерността и MLflow.
+**Objective:** Predict house sale prices, classify expensive/cheap properties, cluster neighborhoods, reduce dimensionality, and track experiments with MLflow.
 
-**🏆 Финален резултат:** RMSLE **0.11940**, класиране **302 / 5094** (топ 6%) в Kaggle.
+**🏆 Final Result:** RMSLE **0.11921**, Kaggle ranking **~275 / 5094** (top ~5.4%).
 
-## 📈 Прогресия на резултатите (публичен Kaggle RMSLE)
+## 📈 Performance Progression (Public Kaggle RMSLE)
 
-| Версия | Мета-модел | Alpha | Базови модели | RMSLE | Δ |
-|--------|------------|-------|---------------|-------|---|
+| Version | Meta-model | Alpha | Base Models | RMSLE | Δ |
+|---------|------------|-------|-------------|-------|---|
 | Baseline (improved) | Ridge | 0.5 | 5 (RF, XGB, LGB, GB, Ridge) | 0.11988 | – |
 | v_01 | Ridge | 0.4 | 5 | 0.11986 | -0.00002 |
 | v_02 | Ridge | 0.3 | 5 | 0.11983 | -0.00003 |
@@ -18,73 +18,86 @@
 | v_05 | Ridge | 0.05 | 5 | 0.11975 | -0.00002 |
 | v_06 | Ridge | 0.02 | 5 | 0.11974 | -0.00001 |
 | v_07 | Ridge | 0.01 | 5 | 0.11974 | 0 |
-| **Ensemble (v_07 + H2O)** | – | – | **5 + H2O AutoML** | **0.11940** | **-0.00034** |
+| Ensemble 50/50 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11940 | -0.00034 |
+| Ensemble 60/40 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11925 | -0.00015 |
+| Ensemble 80/20 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11928 | +0.00003 |
+| **Ensemble 70/30 (v_07 + H2O)** | – | – | **5 + H2O AutoML** | **0.11921** | **-0.00004** |
 
-> **Най-добър резултат:** Ансамбъл 50/50 между ръчен стек (v_07) и H2O-3 AutoML.
+> **Best result:** **70/30** ensemble of the manual stacking model (v_07) and H2O-3 AutoML.
 
-## 🧠 Ключов подход
+## 🧠 Core Approach
 
-Основното подобрение идва от **систематичното намаляване на регуларизацията (alpha)** на Ridge мета-модела – от 0.5 до 0.02 – което последователно намалява RMSLE.
+The key improvement came from **systematically decreasing the regularization strength (alpha)** of the Ridge meta-model – from 0.5 down to 0.02 – which progressively reduced the RMSLE.
 
-Коефициентите на мета-модела при alpha=0.02 (v_06) са:
+Meta-model coefficients at alpha=0.02 (v_06):
 - Random Forest: -0.462
 - XGBoost: 0.145
 - LightGBM: 0.704
 - Gradient Boosting: 0.591
-- Ridge (като базов модел): 0.013 (почти нулев принос)
+- Ridge (as base model): 0.013 (almost zero contribution)
 
-### H2O-3 AutoML експеримент
+### H2O-3 AutoML Experiment and Weight Tuning
 
-Като допълнителен експеримент тествах H2O-3 AutoML (50 модела, 32 минути). Най-добрият му модел (StackedEnsemble) постигна CV RMSLE 0.12609. Комбинирах го с v_07 в 50/50 ансамбъл, което доведе до финалния резултат **0.11940** и класиране **302/5094**.
+As an additional experiment, I tested H2O-3 AutoML (50 models, 32 minutes). Its best model (StackedEnsemble) achieved a CV RMSLE of 0.12609. I combined it with v_07 using different ratios to find the optimal balance:
 
-## 📂 Структура на хранилището
+| Weight (v_07 / H2O) | RMSLE |
+|---------------------|-------|
+| 50/50 | 0.11940 |
+| 60/40 | 0.11925 |
+| 80/20 | 0.11928 |
+| **70/30** | **0.11921** |
 
-- `house_prices_analysis.ipynb` – основен анализ и експерименти
-- `house_prices_model.py` – базов Random Forest
+The best ratio proved to be **70/30**, which yielded the final score of **0.11921** and a ranking of **~275/5094**.
+
+## 📂 Repository Structure
+
+- `house_prices_analysis.ipynb` – main analysis and experiments
+- `house_prices_model.py` – baseline Random Forest
 - `house_prices_xgboost.py` – XGBoost
 - `house_prices_lightgbm.py` – LightGBM
-- `house_prices_stacking.py` – Stacking (3 модела)
-- `house_prices_improved.py` – Базов Stacking (5 модела) – RMSLE 0.11988
-- `house_prices_improved_v_01.py` до `v_06.py` – последователни версии с намаляваща alpha
-- `house_prices_improved_v_06.py` – Финален стекинг модел (alpha=0.02)
-- `house_prices_h2o_autoML.py` – H2O-3 AutoML скрипт (15-минутен тест)
-- `house_prices_h2o_full.py` – H2O-3 AutoML пълен експеримент (2 часа)
-- `house_prices_h2o_ensemble.py` – създава ансамбъл v_07 + H2O
-- `submission_ensemble_h2o_v06.csv` – **най-доброто submission (RMSLE 0.11940)**
-- `submissions/` – други CSV файлове с прогнози
-- `README.md` – този файл
+- `house_prices_stacking.py` – Stacking (3 models)
+- `house_prices_improved.py` – Base Stacking (5 models) – RMSLE 0.11988
+- `house_prices_improved_v_01.py` to `v_07.py` – sequential versions with decreasing alpha
+- `house_prices_h2o_autoML.py` – H2O-3 AutoML script (15-minute test)
+- `house_prices_h2o_full.py` – H2O-3 AutoML full experiment (2 hours)
+- `house_prices_h2o_ensemble.py` – creates ensemble of v_07 + H2O with various weights
+- `ensemble_weight_tuning.py` – automated weight tuning
+- `submission_ensemble_v07_70_h2o_30.csv` – **best submission (RMSLE 0.11921)**
+- `README.md` – this file
 
-## 🚀 Възпроизвеждане
+## 🚀 Reproduction
 
-### Бързо възпроизвеждане (най-добър самостоятелен модел)
+### Quick Reproduction (Best Standalone Model)
 
 ```bash
 pip install -r requirements.txt
 python house_prices_improved_v_06.py
-Това ще генерира submission_house_prices_improved_v_06.csv с RMSLE 0.11974.
+This generates submission_house_prices_improved_v_06.csv with RMSLE 0.11974.
 
-Възпроизвеждане на най-добрия ансамбъл (RMSLE 0.11940)
-За да възпроизведете финалния ансамбъл (v_07 + H2O-3 AutoML), изпълнете следните стъпки:
+Reproduction of the Best Ensemble (RMSLE 0.11921)
+To reproduce the final ensemble (70/30 v_07 + H2O-3 AutoML), follow these steps:
 
-Стартирайте H2O-3 AutoML (отнема ~32 минути):
+Run H2O-3 AutoML (takes ~32 minutes):
 
 bash
 python house_prices_h2o_full.py
-Това ще генерира submission_h2o_autoML_full.csv.
+This generates submission_h2o_autoML_full.csv.
 
-Създайте ансамбъла:
+Generate ensembles with different weights:
 
 bash
-python house_prices_h2o_ensemble.py
-Това ще генерира submission_ensemble_h2o_v06.csv с RMSLE 0.11940 (най-добър резултат).
+python ensemble_weight_tuning.py
+This creates multiple CSV files with various ratios (80/20, 70/30, 60/40, 50/50, etc.).
 
-Изисквания за ансамбъла: H2O-3 и Java (виж requirements.txt).
+Upload all generated CSV files to Kaggle and select the one with the lowest RMSLE. The best result is achieved with the 70/30 ratio (submission_ensemble_v07_70_h2o_30.csv).
+
+Ensemble requirements: H2O-3 and Java (see requirements.txt).
 
 📊 MLflow
-Запазени са всички експерименти – може да се разгледат с:
+All experiments are tracked and can be explored with:
 
 bash
 mlflow ui
-👤 Автор
+👤 Author
 Todor Yankov
-Дата: 18 Юни 2026
+Date: 18 June 2026
