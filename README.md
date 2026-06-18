@@ -56,6 +56,35 @@
 
 ## 🚀 Възпроизвеждане
 
+### Бързо възпроизвеждане (най-добър самостоятелен модел)
+
 ```bash
 pip install -r requirements.txt
 python house_prices_improved_v_06.py
+Това ще генерира submission_house_prices_improved_v_06.csv с RMSLE 0.11974.
+
+Възпроизвеждане на най-добрия ансамбъл (RMSLE 0.11940)
+За да възпроизведете финалния ансамбъл (v_07 + H2O-3 AutoML), изпълнете следните стъпки:
+
+Стартирайте H2O-3 AutoML (отнема ~32 минути):
+
+bash
+python house_prices_h2o_full.py
+Това ще генерира submission_h2o_autoML_full.csv.
+
+Създайте ансамбъла:
+
+bash
+python house_prices_h2o_ensemble.py
+Това ще генерира submission_ensemble_h2o_v06.csv с RMSLE 0.11940 (най-добър резултат).
+
+Изисквания за ансамбъла: H2O-3 и Java (виж requirements.txt).
+
+📊 MLflow
+Запазени са всички експерименти – може да се разгледат с:
+
+bash
+mlflow ui
+👤 Автор
+Todor Yankov
+Дата: 18 Юни 2026
