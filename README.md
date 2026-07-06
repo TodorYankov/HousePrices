@@ -1,103 +1,73 @@
 # House Prices - Advanced Regression Techniques
 
-Final Exam Project in Machine Learning.
+Final Exam Project (Retake) in Machine Learning.
 
-**Objective:** Predict house sale prices, classify expensive/cheap properties, cluster neighborhoods, reduce dimensionality, and track experiments with MLflow.
+**Competition:** [Kaggle – House Prices: Advanced Regression Techniques](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques)
+**Repository:** [github.com/TodorYankov/HousePrices](https://github.com/TodorYankov/HousePrices)
+**Final Kaggle submission:** `submission_house_prices_final.csv`, public RMSLE **0.12500** (see Section 15.1 in the notebook for discussion of the CV–leaderboard gap)
 
-**🏆 Final Result:** RMSLE **0.11921**, Kaggle ranking **~275 / 5094** (top ~5.4%).
+**Objective:** Predict house sale prices using a stacked ensemble of regression models, with a strong emphasis on rigorous, honest model validation.
 
-## 📈 Performance Progression (Public Kaggle RMSLE)
+**🏆 Final Result:** Honest cross-validation RMSLE **0.11594** (± 0.00880); public Kaggle RMSLE **0.12500** (see notes on the CV–leaderboard gap below).
 
-| Version | Meta-model | Alpha | Base Models | RMSLE | Δ |
-|---------|------------|-------|-------------|-------|---|
-| Baseline (improved) | Ridge | 0.5 | 5 (RF, XGB, LGB, GB, Ridge) | 0.11988 | – |
-| v_01 | Ridge | 0.4 | 5 | 0.11986 | -0.00002 |
-| v_02 | Ridge | 0.3 | 5 | 0.11983 | -0.00003 |
-| v_03 | Ridge | 0.2 | 5 | 0.11981 | -0.00002 |
-| v_04 | Ridge | 0.1 | 5 | 0.11977 | -0.00004 |
-| v_05 | Ridge | 0.05 | 5 | 0.11975 | -0.00002 |
-| v_06 | Ridge | 0.02 | 5 | 0.11974 | -0.00001 |
-| v_07 | Ridge | 0.01 | 5 | 0.11974 | 0 |
-| Ensemble 50/50 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11940 | -0.00034 |
-| Ensemble 60/40 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11925 | -0.00015 |
-| Ensemble 80/20 (v_07 + H2O) | – | – | 5 + H2O AutoML | 0.11928 | +0.00003 |
-| **Ensemble 70/30 (v_07 + H2O)** | – | – | **5 + H2O AutoML** | **0.11921** | **-0.00004** |
+## ⚠️ Retake Note: Methodological Correction
 
-> **Best result:** **70/30** ensemble of the manual stacking model (v_07) and H2O-3 AutoML.
+This retake corrects a bug discovered in the original submission: the previously reported cross-validation RMSLE of **0.11970** was computed **in-sample** (the meta-learner was evaluated on the same data it was fitted on) rather than via genuine out-of-fold cross-validation. This artificially inflated apparent model quality and masked the effect of two high-leverage outliers in the training data.
+
+The notebook (`house_prices_analysis.ipynb`, Sections 13–15.1) documents the full diagnosis and correction process:
+1. **Bug identification**: in-sample vs. out-of-fold evaluation produced very different results (0.11970 vs. 0.13325).
+2. **Root cause diagnosis**: fold-by-fold breakdown revealed one fold with RMSLE 0.179 vs. ~0.11–0.14 for the others.
+3. **Fix**: removal of two well-documented Ames Housing outliers (`GrLivArea` > 4000, low `SalePrice`) reduced the honest CV RMSLE to **0.11594** and stabilized fold-to-fold variance (std 0.0247 → 0.0088).
+4. **Follow-up finding**: the corrected model, despite a better internal CV score, scored *worse* on the public Kaggle leaderboard (0.12500) than the original flawed pipeline (0.11974–0.11988) — likely due to distribution mismatch introduced by removing outliers only from the training set. This is analyzed honestly in Section 15.1 rather than hidden.
+
+## 📈 Performance Summary (Honest Cross-Validation, Post-Correction)
+
+| Model | CV RMSLE |
+|-------|----------|
+| Baseline RF (11 features) | 0.15793 |
+| Random Forest (all features, engineered) | 0.13450 |
+| Ridge | 0.12006 |
+| Gradient Boosting | 0.12001 |
+| LightGBM | 0.12541 |
+| XGBoost | 0.11723 |
+| **Stacking (5 models, Ridge meta, α=0.5)** | **0.11594** |
+
+All values computed after outlier removal (1,458 training rows) using proper out-of-fold cross-validation. Ridge meta-learner regularization (α) was found to have a statistically negligible effect within the tested range (0.01–0.5); α=0.5 was retained as it gave the (nominally) best and most stable result.
 
 ## 🧠 Core Approach
 
-The key improvement came from **systematically decreasing the regularization strength (alpha)** of the Ridge meta-model – from 0.5 down to 0.02 – which progressively reduced the RMSLE.
+Five base models (Random Forest, XGBoost, LightGBM, Gradient Boosting, Ridge) are combined via a Ridge meta-learner using out-of-fold stacking. Feature engineering includes `TotalSF`, `TotalBath`, `HouseAge`, quality-area interaction terms, and neighborhood/seasonal encodings.
 
-Meta-model coefficients at alpha=0.02 (v_06):
-- Random Forest: -0.462
-- XGBoost: 0.145
-- LightGBM: 0.704
-- Gradient Boosting: 0.591
-- Ridge (as base model): 0.013 (almost zero contribution)
+## 📂 Historical Experiments
 
-### H2O-3 AutoML Experiment and Weight Tuning
+The notebook also documents earlier exploratory work conducted **before** the correction above, retained for transparency:
+- Extending the ensemble to 7 base models (CatBoost, ExtraTrees) — did not improve generalization
+- Blending with H2O-3 AutoML at various weights (best historical blend: 70/30, RMSLE 0.11921)
 
-As an additional experiment, I tested H2O-3 AutoML (50 models, 32 minutes). Its best model (StackedEnsemble) achieved a CV RMSLE of 0.12609. I combined it with v_07 using different ratios to find the optimal balance:
-
-| Weight (v_07 / H2O) | RMSLE |
-|---------------------|-------|
-| 50/50 | 0.11940 |
-| 60/40 | 0.11925 |
-| 80/20 | 0.11928 |
-| **70/30** | **0.11921** |
-
-The best ratio proved to be **70/30**, which yielded the final score of **0.11921** and a ranking of **~275/5094**.
+These historical results are **not directly comparable** to the corrected pipeline, since they used the original 1,460-row dataset and the flawed in-sample evaluation metric. They are kept for documentation of the exploration process, not as the final reported result.
 
 ## 📂 Repository Structure
 
-- `house_prices_analysis.ipynb` – main analysis and experiments
-- `house_prices_model.py` – baseline Random Forest
-- `house_prices_xgboost.py` – XGBoost
-- `house_prices_lightgbm.py` – LightGBM
-- `house_prices_stacking.py` – Stacking (3 models)
-- `house_prices_improved.py` – Base Stacking (5 models) – RMSLE 0.11988
-- `house_prices_improved_v_01.py` to `v_07.py` – sequential versions with decreasing alpha
-- `house_prices_h2o_autoML.py` – H2O-3 AutoML script (15-minute test)
-- `house_prices_h2o_full.py` – H2O-3 AutoML full experiment (2 hours)
-- `house_prices_h2o_ensemble.py` – creates ensemble of v_07 + H2O with various weights
-- `ensemble_weight_tuning.py` – automated weight tuning
-- `submission_ensemble_v07_70_h2o_30.csv` – **best submission (RMSLE 0.11921)**
-- `README.md` – this file
+- `house_prices_analysis.ipynb` – main analysis, including the bug diagnosis and correction (**primary deliverable**)
+- `submission_house_prices_final.csv` – final corrected submission (honest CV RMSLE 0.11594, Kaggle RMSLE 0.12500)
+- (historical scripts and submissions from earlier exploration, retained for transparency — see notebook Sections 13.2 and 14 for context)
 
 ## 🚀 Reproduction
 
-### Quick Reproduction (Best Standalone Model)
-
 ```bash
 pip install -r requirements.txt
-python house_prices_improved_v_06.py
-This generates submission_house_prices_improved_v_06.csv with RMSLE 0.11974.
+jupyter notebook house_prices_analysis.ipynb
+```
 
-Reproduction of the Best Ensemble (RMSLE 0.11921)
-To reproduce the final ensemble (70/30 v_07 + H2O-3 AutoML), follow these steps:
+Run all cells in order (Kernel → Restart & Run All). The notebook will:
+1. Load and explore the data
+2. Remove the two known outliers
+3. Engineer features and preprocess
+4. Train and evaluate 5 base models + stacking ensemble via honest cross-validation
+5. Diagnose and discuss the CV–leaderboard gap
+6. Generate `submission_house_prices_final.csv`
 
-Run H2O-3 AutoML (takes ~32 minutes):
-
-bash
-python house_prices_h2o_full.py
-This generates submission_h2o_autoML_full.csv.
-
-Generate ensembles with different weights:
-
-bash
-python ensemble_weight_tuning.py
-This creates multiple CSV files with various ratios (80/20, 70/30, 60/40, 50/50, etc.).
-
-Upload all generated CSV files to Kaggle and select the one with the lowest RMSLE. The best result is achieved with the 70/30 ratio (submission_ensemble_v07_70_h2o_30.csv).
-
-Ensemble requirements: H2O-3 and Java (see requirements.txt).
-
-📊 MLflow
-All experiments are tracked and can be explored with:
-
-bash
-mlflow ui
-👤 Author
+## 👤 Author
 Todor Yankov
-Date: 18 June 2026
+Retake submission: July 2026
+Repository: https://github.com/TodorYankov/HousePrices
