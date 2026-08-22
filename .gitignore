@@ -31,3 +31,4 @@ mlruns/
 # OS метаданни
 .DS_Store
 Thumbs.db
+mlflow.db
