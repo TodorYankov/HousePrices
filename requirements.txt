@@ -5,7 +5,9 @@ seaborn
 scikit-learn
 xgboost
 lightgbm
+optuna
 mlflow
 shap
 jupyter
 openpyxl
+
