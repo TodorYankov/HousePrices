@@ -1,49 +1,108 @@
 # House Prices – Leakage-Free Machine Learning Pipeline
 
-Machine Learning project based on the Kaggle competition  
-**House Prices: Advanced Regression Techniques**.
+## Project Overview
 
-## Project Objective
+This project solves the Kaggle **House Prices: Advanced Regression Techniques**
+regression problem using a reproducible and leakage-free machine learning
+workflow.
 
-The goal of this project is to predict residential sale prices from the Ames Housing dataset.
-
-The project focuses not only on predictive performance, but also on:
+The main objective is not only to obtain a competitive RMSLE score, but also
+to demonstrate a clear experimental methodology:
 
 - leakage-free preprocessing;
-- honest out-of-fold cross-validation;
-- interpretable experiment design;
-- error analysis;
-- model comparison and selection;
-- model limitations;
-- generalization to unseen Kaggle data.
+- feature engineering;
+- genuine out-of-fold (OOF) validation;
+- structural outlier investigation;
+- model comparison;
+- Optuna hyperparameter optimization;
+- ensemble analysis;
+- MLflow experiment tracking;
+- subgroup reliability analysis;
+- comparison between internal OOF validation and external Kaggle performance.
+
+The final selected model is a **50% Ridge + 50% Optuna-tuned XGBoost ensemble**.
 
 ---
 
-## Methodology
+## Retake Methodological Correction
 
-The final version of the project uses a leakage-free machine learning workflow.
+An important part of this retake project was correcting the validation
+methodology used during earlier experimentation.
 
-All learned preprocessing operations are performed inside the cross-validation pipeline.
+An earlier version of the project contained an evaluation issue in which
+model performance could appear better than genuine out-of-fold performance.
+Rather than retaining those optimistic results, the validation pipeline was
+redesigned around strict fold-specific preprocessing and genuine OOF
+predictions.
 
-For every cross-validation fold:
+The final workflow therefore treats preprocessing, model fitting,
+hyperparameter optimization and ensemble selection as parts of the
+cross-validation procedure.
 
-1. The preprocessor is fitted only on the training fold.
-2. Missing values are imputed using information from the training fold only.
-3. Categorical encoding and scaling are learned from the training fold only.
-4. The validation fold is transformed using the fitted preprocessor.
-5. The model is trained on the training fold.
-6. Predictions are generated for the untouched validation fold.
+The correction also motivated a detailed investigation of two high-leverage
+observations. Their eventual removal was based on an explicit structural rule
+(`GrLivArea > 4000` and `SalePrice < 300000`) rather than simply deleting
+observations with large prediction errors.
 
-The Kaggle test dataset is never used to fit imputers, encoders, scalers, or models.
+Earlier experimental scores are therefore treated as historical results and
+are not directly compared with the final leakage-free pipeline.
 
-This allows the Out-of-Fold (OOF) validation results to provide a more realistic estimate of
-generalization performance.
+---
+
+## Dataset
+
+The project uses the Kaggle House Prices dataset.
+
+Training data:
+
+- 1,460 observations;
+- 80 input columns;
+- target: `SalePrice`.
+
+Test data:
+
+- 1,459 observations;
+- 80 input columns.
+
+The target is transformed using:
+
+\[
+z = \log(1 + SalePrice)
+\]
+
+This allows RMSE in log-price space to correspond to the RMSLE objective used
+for model evaluation.
+
+---
+
+## Leakage-Free Validation
+
+Preventing data leakage is a central methodological requirement of this
+project.
+
+Numerical and categorical preprocessing is defined using a
+`ColumnTransformer`, but the transformations are not fitted on the complete
+dataset before cross-validation.
+
+Inside every cross-validation fold:
+
+1. preprocessing is fitted only on the training fold;
+2. the model is trained only on the training fold;
+3. the validation fold is transformed using parameters learned from the
+   training fold;
+4. predictions are generated for the untouched validation observations.
+
+This produces genuine **out-of-fold (OOF) predictions**.
+
+The Kaggle test dataset is never used to fit preprocessing parameters,
+hyperparameters, or models.
 
 ---
 
 ## Feature Engineering
 
-Several domain-inspired features are created from the original Ames Housing predictors:
+The feature-engineering stage adds interpretable housing characteristics,
+including:
 
 - `TotalSF`
 - `TotalBath`
@@ -57,404 +116,363 @@ Several domain-inspired features are created from the original Ames Housing pred
 - `Qual_TotalSF`
 - `Qual_GrLivArea`
 
-These features are created exclusively from predictor variables and do not use the target
-`SalePrice`.
+The resulting dataset contains **91 features**:
 
-After feature engineering:
+- 48 numerical features;
+- 43 categorical features.
 
-- Numerical features: **48**
-- Categorical features: **43**
-- Total features: **91**
+Missing values are replaced by zero only when zero has a direct structural
+meaning for the engineered quantity.
 
----
-
-## Leakage-Free Baseline
-
-The first leakage-free Ridge experiment was evaluated using 5-fold cross-validation.
-
-Results:
-
-| Fold | RMSLE |
-|---|---:|
-| Fold 1 | 0.13315 |
-| Fold 2 | 0.12910 |
-| Fold 3 | 0.22172 |
-| Fold 4 | 0.12300 |
-| Fold 5 | 0.10674 |
-
-Overall results:
-
-- Mean Fold RMSLE: **0.14274**
-- Fold Standard Deviation: **0.04050**
-- OOF RMSLE: **0.14838**
-
-The unusually poor third fold motivated a detailed OOF error analysis.
+No means, medians, modes, category frequencies, or other dataset-level
+statistics are learned from the complete dataset during feature engineering.
 
 ---
 
 ## Structural Outlier Analysis
 
-The OOF analysis revealed two extreme observations:
+The initial leakage-free Ridge baseline revealed two highly influential
+observations.
 
-- **Id 524**
-- **Id 1299**
+A transparent structural rule was defined:
 
-Both properties had extremely large living areas and high overall quality but unusually low
+\[
+GrLivArea > 4000
+\quad \land \quad
+SalePrice < 300000
+\]
+
+This identifies exactly two unusually large houses with comparatively low
 sale prices.
 
-A transparent structural rule was investigated:
-
-`GrLivArea > 4000 and SalePrice < 300000`
-
-The rule identified exactly these two observations.
-
-Importantly, the observations were not removed simply because the model predicted them poorly.
-The removal decision was based on their unusual structural relationship between property size
-and sale price.
+Importantly, these observations were **not removed simply because their OOF
+prediction errors were large**. The removal criterion is based on an explicit
+relationship between raw housing characteristics and sale price.
 
 After applying the structural rule:
 
-- Original observations: **1460**
-- Removed observations: **2**
-- Final training observations: **1458**
+- original training observations: **1,460**
+- removed observations: **2**
+- final training observations: **1,458**
 
 ---
 
-## Ridge After Structural Outlier Removal
+## Model Experiments
 
-The complete leakage-free Ridge pipeline was retrained and evaluated again.
+Several model families were evaluated using the same leakage-free validation
+protocol.
 
-Results:
-
-| Fold | RMSLE |
+| Experiment | OOF RMSLE |
 |---|---:|
-| Fold 1 | 0.12305 |
-| Fold 2 | 0.11048 |
-| Fold 3 | 0.11705 |
-| Fold 4 | 0.12355 |
-| Fold 5 | 0.10185 |
-
-Overall:
-
-- Mean Fold RMSLE: **0.11520**
-- Fold Standard Deviation: **0.00819**
-- OOF RMSLE: **0.11549**
-
-This was a substantial improvement over the original leakage-free baseline.
+| Ridge – all observations | 0.148376 |
+| Ridge – diagnostic exclusion only | 0.120386 |
+| Ridge – retrained after structural outlier rule | 0.115489 |
+| XGBoost – baseline leakage-free CV | 0.115370 |
+| XGBoost – Optuna tuned leakage-free CV | 0.113803 |
+| LightGBM – leakage-free CV | 0.123607 |
+| **50/50 Ridge + Optuna XGBoost** | **0.109780** |
 
 ---
 
-## Model Comparison
+## Optuna Hyperparameter Optimization
 
-Multiple models were evaluated using the same leakage-free OOF methodology.
+Optuna is used as a controlled proposal mechanism for XGBoost
+hyperparameters.
 
-| Model | OOF RMSLE |
-|---|---:|
-| Ridge | **0.11549** |
-| XGBoost | **0.11537** |
-| LightGBM | 0.12361 |
-| Ridge + XGBoost 50/50 | **0.11069** |
+Every Optuna trial repeats the complete leakage-free five-fold validation
+procedure. Preprocessing is fitted independently inside each training fold,
+so validation data cannot influence learned preprocessing parameters.
 
-XGBoost achieved a slightly better standalone OOF score than Ridge.
+The best configuration achieved:
 
-However, the prediction and error analysis showed that the two models were sufficiently
-different to justify testing an ensemble.
+**OOF RMSLE: 0.113803**
 
-Prediction correlation between Ridge and XGBoost:
+Selected parameters:
 
-**0.98551**
+```text
+n_estimators     = 1100
+learning_rate    = 0.039524534394525634
+max_depth        = 3
+min_child_weight = 3
+subsample        = 0.7750590251178121
+colsample_bytree = 0.6515493505666603
+reg_alpha        = 0.1030285029296229
+reg_lambda       = 0.6672670420130714
+```
 
-OOF error correlation:
-
-**0.83920**
+This improves on the baseline XGBoost OOF RMSLE of **0.115370**.
 
 ---
 
 ## Ensemble Selection
 
-A controlled OOF blending experiment tested different Ridge and XGBoost weights.
+Ridge and Optuna-tuned XGBoost produce highly correlated predictions, but
+their errors are not identical.
+
+Observed OOF correlations:
+
+- prediction correlation: **0.98524**
+- error correlation: **0.83382**
+
+Several ensemble weights were evaluated using OOF predictions.
 
 The best tested combination was:
 
 - Ridge: **50%**
-- XGBoost: **50%**
+- Optuna-tuned XGBoost: **50%**
 
-OOF RMSLE:
+The selected ensemble achieved:
 
-**0.11069**
+**OOF RMSLE = 0.109780**
 
-### Fold-by-Fold Ensemble Performance
+Fold-level results:
 
 | Fold | RMSLE |
 |---|---:|
-| Fold 1 | 0.11664 |
-| Fold 2 | 0.10544 |
-| Fold 3 | 0.11515 |
-| Fold 4 | 0.11577 |
-| Fold 5 | 0.09937 |
+| 1 | 0.11607 |
+| 2 | 0.10544 |
+| 3 | 0.11309 |
+| 4 | 0.11445 |
+| 5 | 0.09887 |
 
-Overall:
+Mean fold RMSLE: **0.10958**
 
-- Mean Fold RMSLE: **0.11047**
-- Fold Standard Deviation: **0.00688**
-- OOF RMSLE: **0.11069**
+Fold standard deviation: **0.00648**
 
-The ensemble improved both individual models while maintaining stable performance across folds.
+The blend outperforms both individual models under the same OOF validation
+protocol, supporting the conclusion that the models capture complementary
+information.
 
 ---
 
 ## LightGBM Experiment
 
-LightGBM was also evaluated using the same leakage-free methodology.
+LightGBM was evaluated as a possible third ensemble component.
 
-LightGBM OOF RMSLE:
+Standalone LightGBM achieved:
 
-**0.12361**
+**OOF RMSLE = 0.123607**
 
-The OOF error correlations were:
+Its OOF errors were strongly correlated with XGBoost. Controlled three-model
+experiments showed that the best weight assigned to LightGBM was **0%**.
 
-| | Ridge | XGBoost | LightGBM |
-|---|---:|---:|---:|
-| Ridge | 1.000 | 0.839 | 0.786 |
-| XGBoost | 0.839 | 1.000 | 0.922 |
-| LightGBM | 0.786 | 0.922 | 1.000 |
+Therefore LightGBM was rejected from the final ensemble.
 
-A controlled three-model blending experiment tested increasing LightGBM contributions.
+This demonstrates an important experimental principle:
 
-The optimal tested combination was:
-
-- Ridge: **50%**
-- XGBoost: **50%**
-- LightGBM: **0%**
-
-Therefore, LightGBM was excluded from the final model.
-
-Adding it increased complexity without improving OOF performance.
+> More models do not automatically produce a better ensemble.
 
 ---
 
-## Final Model
+## Error and Reliability Analysis
 
-The selected final ensemble is:
+The selected ensemble was analyzed beyond its global RMSLE.
 
-**50% Ridge + 50% XGBoost**
+Performance was examined by:
 
-Final leakage-free validation performance:
+- sale-price range;
+- `OverallQual`;
+- neighborhood;
+- individual high-error observations.
 
-**OOF RMSLE = 0.11069**
+The analysis demonstrates that model reliability is not uniform across all
+property groups.
 
-The final models were trained using **1458 training observations** and predictions were generated
-for **1459 Kaggle test observations**.
+RMSLE by price range:
 
----
-
-## Error Analysis
-
-The final ensemble produced:
-
-- Mean residual: **0.00071**
-- Median residual: **0.00395**
-- Mean absolute log error: **0.07482**
-- Median absolute log error: **0.05283**
-
-The analysis showed that model reliability is not uniform across the housing market.
-
-### Performance by Price Range
-
-| Price Segment | RMSLE |
+| Price Range | RMSLE |
 |---|---:|
-| Low | 0.15106 |
-| Lower-Middle | 0.09920 |
-| Upper-Middle | **0.07768** |
-| High | 0.10152 |
+| Low | 0.14921 |
+| Lower-Middle | 0.09951 |
+| Upper-Middle | 0.07700 |
+| High | 0.10051 |
 
-The model performs best in the middle of the price distribution.
+The model performs best on the central part of the housing market and is less
+reliable for low-priced properties.
 
-Low-priced properties are substantially more difficult to predict.
-
----
-
-## Performance by Neighborhood
-
-Model performance also varies considerably across neighborhoods.
-
-Examples:
-
-| Neighborhood | RMSLE |
-|---|---:|
-| IDOTRR | 0.24541 |
-| OldTown | 0.14567 |
-| Edwards | 0.12717 |
-| NridgHt | 0.10044 |
-| NAmes | 0.09615 |
-| Gilbert | 0.07403 |
-| CollgCr | 0.06488 |
-
-These results demonstrate that a single global RMSLE score does not describe model reliability
-equally well for all types of properties.
-
-Small neighborhood groups should also be interpreted cautiously because their estimates are
-based on relatively few observations.
+The subgroup analysis also shows that rare `OverallQual` categories and
+neighborhoods with small sample sizes should be interpreted cautiously.
 
 ---
 
-## Prediction Sanity Checks
+## MLflow Experiment Tracking
 
-Before creating the final submission, the predictions were checked for invalid values.
+MLflow is used only as an experiment ledger.
 
-Results:
+It records:
 
-- Number of predictions: **1459**
-- NaN predictions: **0**
-- Infinite predictions: **0**
-- Negative predictions: **0**
+- cleaned Ridge OOF RMSLE;
+- baseline XGBoost OOF RMSLE;
+- Optuna-tuned XGBoost OOF RMSLE;
+- selected Ridge/XGBoost ensemble OOF RMSLE;
+- best Optuna hyperparameters;
+- number of CV folds;
+- validation protocol;
+- structural outlier rule.
 
-The highest and lowest predicted properties were also inspected manually.
+MLflow does not participate in feature engineering, preprocessing,
+cross-validation, hyperparameter selection, model fitting, or test-set
+inference.
 
-High predictions generally corresponded to properties with:
-
-- high `OverallQual`;
-- large `GrLivArea`;
-- large total floor area;
-- newer construction;
-- multiple garage spaces.
-
-Low predictions generally corresponded to:
-
-- low `OverallQual`;
-- smaller living areas;
-- older construction;
-- limited or no garage capacity.
-
-No manual clipping or correction of individual predictions was applied.
+Local MLflow artifacts such as `mlflow.db` and `mlruns/` are excluded from
+version control.
 
 ---
 
 ## Kaggle Generalization Check
 
-The final submission was evaluated on the Kaggle public leaderboard.
+The Kaggle Public Leaderboard is treated as an **external generalization
+check**, not as an additional training or validation fold.
 
-| Evaluation | RMSLE |
-|---|---:|
-| Leakage-Free OOF | **0.11069** |
-| Kaggle Public Score | **0.12808** |
-| Generalization Gap | **0.01739** |
+Final selected model:
 
-The public Kaggle score is worse than the internal OOF estimate.
+- **OOF RMSLE:** 0.10978
+- **Kaggle Public Score:** 0.12789
+- **Generalization gap:** 0.01811
 
-This indicates that the cross-validation estimate was somewhat optimistic relative to unseen
-competition data.
+An earlier 65% Ridge + 35% XGBoost ensemble achieved:
 
-The gap is reported explicitly rather than hidden.
+- **OOF RMSLE:** 0.10987
+- **Kaggle Public Score:** 0.12575
+- **Generalization gap:** 0.01588
 
-The public leaderboard was treated as an external generalization check rather than as another
-validation dataset.
+Therefore, the configuration with the best internal OOF result did not obtain
+the best Public Leaderboard score.
 
-Repeated tuning solely against the public leaderboard could lead to leaderboard overfitting.
+This discrepancy is reported transparently rather than used for retrospective
+leaderboard-driven tuning. Hyperparameters and ensemble weights remain
+selected from the leakage-free OOF validation procedure rather than repeated
+Public Leaderboard feedback.
 
 ---
 
-## Final Submission
+## Final Model
 
-The final Kaggle submission is:
+The final selected predictive system is:
 
-`submissions/submission_leakage_free_ridge_xgb_50_50.csv`
+**50% Ridge + 50% Optuna-tuned XGBoost**
 
-Final ensemble:
+Both models are fitted on all **1,458 clean training observations** only after
+model selection and error analysis are complete.
 
-**50% Ridge + 50% XGBoost**
+Predictions are blended in log-price space:
 
-Kaggle Public Score:
+```python
+final_test_pred_log = (
+    0.5 * ridge_test_pred_log
+    + 0.5 * xgb_test_pred_log
+)
+```
 
-**0.12808**
+They are then transformed back to the original `SalePrice` scale:
+
+```python
+final_test_pred = np.expm1(final_test_pred_log)
+```
+
+Final submission:
+
+```text
+submissions/submission_leakage_free_ridge_optuna_xgb_50_50.csv
+```
+
+---
+
+## Main Notebook
+
+The complete analysis is available in:
+
+```text
+house_prices_leakage_free.ipynb
+```
+
+The notebook contains the full workflow from data loading and feature
+engineering through leakage-free validation, Optuna tuning, model selection,
+error analysis, final training, Kaggle submission and external generalization
+analysis.
 
 ---
 
 ## Repository Structure
 
-```text
-HousePrices/
-│
-├── house_prices_leakage_free.ipynb
-├── README.md
-├── requirements.txt
-├── .gitignore
-│
-└── submissions/
-    └── submission_leakage_free_ridge_xgb_50_50.csv
-```
+The main files for the final project are:
 
-The Kaggle dataset is expected locally in the `data/` directory:
+- `house_prices_leakage_free.ipynb` – primary notebook containing the complete
+  leakage-free machine learning workflow;
+- `requirements.txt` – Python dependencies required to reproduce the project;
+- `submissions/submission_leakage_free_ridge_optuna_xgb_50_50.csv` – final
+  Kaggle submission generated by the selected ensemble;
+- `README.md` – project methodology, results and reproducibility documentation;
+- `.gitignore` – excludes local environments, MLflow artifacts, caches and
+  other non-project files.
 
-```text
-data/
-├── train.csv
-├── test.csv
-└── sample_submission.csv
-```
-
-The dataset is not stored in the Git repository.
+Earlier scripts and experimental artifacts in the Git history represent the
+development process and should not be interpreted as the final predictive
+pipeline.
 
 ---
 
-## Reproduction
+## Technologies
 
-### Installation
+- Python
+- Pandas
+- NumPy
+- Matplotlib
+- scikit-learn
+- XGBoost
+- LightGBM
+- Optuna
+- MLflow
+- Jupyter Notebook
+- Git / GitHub
 
-Create or activate a Python environment and install the required packages:
+---
+
+## Reproducibility
+
+Install the project dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The project was developed using Python 3.12.
+Then open:
 
-### Running the Project
+```text
+house_prices_leakage_free.ipynb
+```
 
-Open:
+and run the notebook from top to bottom.
 
-`house_prices_leakage_free.ipynb`
-
-Run the notebook cells sequentially.
-
-The notebook performs:
-
-1. Raw data loading
-2. Feature and target separation
-3. Leakage-safe feature engineering
-4. Leakage-free preprocessing
-5. Five-fold cross-validation
-6. Genuine OOF prediction generation
-7. OOF error analysis
-8. Structural outlier investigation
-9. Ridge evaluation
-10. XGBoost evaluation
-11. OOF model blending
-12. LightGBM evaluation
-13. Final model selection
-14. Detailed error analysis
-15. Final model training
-16. Kaggle prediction generation
-17. Prediction sanity checks
-18. OOF vs Kaggle generalization analysis
+Random seeds and cross-validation splits are fixed where applicable to improve
+reproducibility.
 
 ---
 
-## Final Conclusion
+## Conclusions
 
-The main objective of the final version is not simply to obtain the lowest possible leaderboard score.
+The main findings of the project are:
 
-The project follows a clear experimental workflow:
+1. Leakage-free validation substantially improves the credibility of model
+   evaluation.
+2. Structural outlier analysis significantly improves Ridge performance and
+   fold-to-fold stability.
+3. Optuna tuning improves XGBoost from **0.115370** to **0.113803** OOF RMSLE.
+4. Ridge and Optuna-tuned XGBoost provide complementary predictive information.
+5. Their 50/50 ensemble achieves the best internal result:
+   **0.109780 OOF RMSLE**.
+6. LightGBM does not improve the selected ensemble and is therefore rejected.
+7. Reliability varies across price ranges, quality levels and neighborhoods.
+8. The best internal OOF model does not necessarily produce the best score on
+   a particular Kaggle Public Leaderboard subset.
+9. The Kaggle Public Score is treated as external evidence rather than a
+   tuning objective.
+10. The OOF-to-Public gap is reported explicitly as a limitation of the
+    internal validation estimate.
 
-**hypothesis → experiment → OOF evaluation → error analysis → decision**
-
-The Ridge/XGBoost ensemble was selected because the OOF evidence supported the combination.
-
-LightGBM was tested but rejected because it did not improve validation performance.
-
-The final analysis also documents where the model performs well and where its predictions are less reliable.
-
-The final model should therefore be viewed as a validated predictive system with documented limitations rather than only as a Kaggle leaderboard score.
+The project prioritizes **reproducibility, leakage prevention, transparent
+experimentation and evidence-based model selection** over simply testing a
+large number of models.
 
 ---
 
@@ -463,4 +481,4 @@ The final model should therefore be viewed as a validated predictive system with
 **Todor Yankov**
 
 Machine Learning Retake Project  
-2026   
+2026
